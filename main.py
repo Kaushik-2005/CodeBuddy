@@ -1,6 +1,6 @@
 from agent.llm_provider import GeminiProvider
-from tools.file_tools import read_file
-from cli.interface import get_user_input, show_output
+from agent.agent import Agent
+from cli.interface import get_user_input, show_output, show_info, show_error
 from dotenv import load_dotenv
 import os
 
@@ -10,26 +10,40 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 def main():
     if not GEMINI_API_KEY:
-        show_output("Gemini API key not found. Please set GEMINI_API_KEY in your .env file.")
+        show_error("Gemini API key not found. Please set GEMINI_API_KEY in your .env file.")
         return
 
-    llm = GeminiProvider(api_key=GEMINI_API_KEY)
-    while True:
-        user_query = get_user_input()
-        if user_query.lower() in ["exit", "quit"]:
-            break
+    try:
+        llm = GeminiProvider(api_key=GEMINI_API_KEY, mock_mode=False)
+        agent = Agent(llm)
+        
+        show_info("CodeBuddy initialized! Available commands:")
+        show_output("- Ask about files: 'What's in main.py?'")
+        show_output("- Search code: 'Find all TODO comments'") 
+        show_output("- View structure: 'Show me the project structure'")
+        show_output("- Create files: 'Write a Python class for...'")
+        show_output("- Type 'debug' to toggle debug mode")
+        show_output("- Type 'exit' or 'quit' to stop\n")
+        
+        while True:
+            try:
+                user_query = get_user_input()
+                if user_query.lower() in ["exit", "quit"]:
+                    break
+                elif user_query.lower() == "debug":
+                    agent.toggle_debug()
+                    continue
 
-        # Perceive: Check if user asks about a file
-        if "package.json" in user_query:
-            file_content = read_file("package.json")
-            prompt = f"Summarize the following file content:\n{file_content}"
-            # Reason: Use LLM to summarize
-            summary = llm.ask(prompt)
-            # Act: Show output
-            show_output(summary)
-            # Learn: (for now, just print; later, store context)
-        else:
-            show_output("I can currently answer questions about package.json. More features coming soon!")
+                response = agent.execute_command(user_query)
+                
+                if response:
+                    show_output(response)
+                    
+            except Exception as e:
+                show_error(f"Error processing command: {e}")
+
+    except Exception as e:
+        show_error(f"Error initializing CodeBuddy: {e}")
 
 if __name__ == "__main__":
     main()
