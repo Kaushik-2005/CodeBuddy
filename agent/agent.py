@@ -25,6 +25,14 @@ class Agent:
         status = "enabled" if self.debug_mode else "disabled"
         show_info(f"Debug mode {status}")
     
+    def is_explanation_request(self, user_query: str) -> bool:
+        """Check if the user is asking for an explanation rather than just file operations"""
+        explanation_keywords = [
+            'explain', 'understand', 'what does', 'how does', 'analyze', 
+            'breakdown', 'describe', 'walk through', 'summarize', 'overview'
+        ]
+        return any(keyword in user_query.lower() for keyword in explanation_keywords)
+    
     def select_tools(self, user_query: str) -> str:
         """Use LLM to determine which tools to use"""
         prompt = f"""
@@ -42,34 +50,42 @@ CRITICAL RULES:
 1. ONLY respond with tool commands in the exact format: tool_name(param1="value1", param2="value2")
 2. Do NOT include any explanatory text, comments, or code outside tool commands
 3. When using write_file, put ALL code content in the content parameter with \\n for line breaks
-4. Escape quotes inside content with \\"
+4. Escape quotes inside content with \\\"
 
 If multiple tools are needed, list them on separate lines.
-
-GOOD examples:
-create_directory(directory_path="Library Management")
-write_file(filepath="Library Management/book.py", content="class Book:\\n    def __init__(self, title, author, isbn):\\n        self.title = title\\n        self.author = author\\n        self.isbn = isbn")
-
-BAD examples (DO NOT DO):
-```python
-class Book:
-    def __init__(self):
-        pass
-```
-print("Creating files...")
-
 Respond with ONLY tool commands:
 """
+        
+        return self.llm.ask(prompt)
     
+    def explain_code(self, file_content: str, filepath: str, user_query: str) -> str:
+        """Generate an explanation of the code"""
+        prompt = f"""
+You are a coding assistant. The user asked: "{user_query}"
+
+Here is the code from {filepath}:
+
+```
+{file_content}
+```
+
+Please provide a clear, helpful explanation of this code. Include:
+1. What the code does (main purpose)
+2. Key components and how they work
+3. Important functions/classes and their roles
+4. Any notable patterns or techniques used
+5. How different parts connect together
+
+Make your explanation beginner-friendly but thorough.
+"""
+        
         return self.llm.ask(prompt)
     
     def parse_and_execute_tool(self, tool_command: str) -> str:
         """Parse tool command and execute it"""
         try:
-            # Clean the tool command
             tool_command = tool_command.strip()
             
-            # Handle multi-line content with triple quotes
             if '"""' in tool_command:
                 before_quotes = tool_command.split('"""')[0]
                 content_part = tool_command.split('"""')[1]
@@ -77,7 +93,6 @@ Respond with ONLY tool commands:
                 escaped_content = content_part.replace('"', '\\"').replace('\n', '\\n')
                 tool_command = before_quotes + '"' + escaped_content + '"' + after_quotes
             
-            # Extract tool name and parameters using regex
             match = re.match(r'(\w+)\((.*)\)', tool_command)
             if not match:
                 return f"Could not parse tool command: {tool_command}"
@@ -85,7 +100,6 @@ Respond with ONLY tool commands:
             tool_name = match.group(1)
             params_str = match.group(2)
             
-            # Parse parameters
             params = {}
             if params_str:
                 if tool_name == "write_file" and 'content=' in params_str:
@@ -97,7 +111,6 @@ Respond with ONLY tool commands:
                     if content_match:
                         params['content'] = content_match.group(1)
                 else:
-                    # Regular parameter parsing
                     current_param = ""
                     in_quotes = False
                     quote_char = None
@@ -134,7 +147,6 @@ Respond with ONLY tool commands:
                             
                             params[key] = value
             
-            # Execute the tool
             result = self.tool_registry.execute(tool_name, **params)
             return result
             
@@ -143,6 +155,31 @@ Respond with ONLY tool commands:
     
     def execute_command(self, user_query: str) -> str:
         """Main execution method"""
+        # Check if this is an explanation request
+        if self.is_explanation_request(user_query):
+            # Try to extract filename from the query
+            file_patterns = [
+                r'(?:in|of|from)\s+([a-zA-Z0-9_./\\-]+\.(?:py|js|ts|java|cpp|c|md|txt|html|css))',
+                r'([a-zA-Z0-9_./\\-]+\.(?:py|js|ts|java|cpp|c|md|txt|html|css))',
+            ]
+            
+            filepath = None
+            for pattern in file_patterns:
+                match = re.search(pattern, user_query, re.IGNORECASE)
+                if match:
+                    filepath = match.group(1)
+                    break
+            
+            if filepath:
+                # Read the file and then explain it
+                file_content = read_file(filepath)
+                if not file_content.startswith("Error"):
+                    explanation = self.explain_code(file_content, filepath, user_query)
+                    return explanation
+                else:
+                    return file_content  # Return the error message
+        
+        # Regular tool execution for non-explanation requests
         tool_suggestion = self.select_tools(user_query)
         
         if self.debug_mode:
@@ -152,13 +189,11 @@ Respond with ONLY tool commands:
         
         results = []
         for tool_line in tool_lines:
-            # Skip lines that are not tool commands
             if not re.match(r'\w+\(.*\)', tool_line):
                 if self.debug_mode:
                     show_debug(f"Skipping non-tool line: {tool_line}")
                 continue
             
-            # Skip common code artifacts
             if tool_line.startswith(('class ', 'def ', 'import ', 'from ', 'print(', '#')):
                 if self.debug_mode:
                     show_debug(f"Skipping code line: {tool_line}")
@@ -169,12 +204,10 @@ Respond with ONLY tool commands:
             
             result = self.parse_and_execute_tool(tool_line)
             
-            # Only add non-status results to return
             if not any(keyword in result for keyword in ["Successfully", "Error", "Tool", "not found"]):
                 results.append(result)
             else:
-                # Show status messages immediately
-                if "Successfully" in result:
+                if "Successfully" in result or "✅" in result:
                     show_success(result)
                 elif "Error" in result or "not found" in result:
                     show_error(result)
