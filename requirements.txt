@@ -1,5 +1,0 @@
-python-dotenv
-rich
-gitpython
-requests
-langchain-gemini

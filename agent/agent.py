@@ -1,6 +1,7 @@
 import re
 from tools.tool_registry import ToolRegistry
-from tools.file_tools import read_file, write_file, search_codebase, get_structure, delete_file, create_directory, delete_directory
+from tools.file_tools import read_file, write_file, search_codebase, get_structure, delete_file, create_directory, delete_directory, find_files, get_file_info
+from tools.code_analysis_tools import validate_syntax, run_linter, find_references, analyze_complexity, code_quality_report
 from memory.memory_manager import ConversationMemory
 from cli.interface import show_debug, show_success, show_error, show_info
 
@@ -9,18 +10,28 @@ class Agent:
         self.llm = llm_provider
         self.tool_registry = ToolRegistry()
         self.debug_mode = False
-        self.memory = ConversationMemory()  # Add memory system
+        self.memory = ConversationMemory()
         self._register_tools()
     
     def _register_tools(self):
         """Register all available tools"""
+        # Filesystem tools
         self.tool_registry.register("read_file", read_file)
+        self.tool_registry.register("find_files", find_files)  # New
+        self.tool_registry.register("get_file_info", get_file_info)  # New
         self.tool_registry.register("write_file", write_file)
         self.tool_registry.register("search_codebase", search_codebase)
         self.tool_registry.register("get_structure", get_structure)
         self.tool_registry.register("delete_file", delete_file)
         self.tool_registry.register("create_directory", create_directory)
-        self.tool_registry.register("delete_directory", delete_directory)  # Add new tool
+        self.tool_registry.register("delete_directory", delete_directory)
+        
+        # Code analysis tools
+        self.tool_registry.register("validate_syntax", validate_syntax)
+        self.tool_registry.register("run_linter", run_linter)
+        self.tool_registry.register("find_references", find_references)
+        self.tool_registry.register("analyze_complexity", analyze_complexity)
+        self.tool_registry.register("code_quality_report", code_quality_report)
     
     def toggle_debug(self):
         """Toggle debug mode on/off"""
@@ -58,6 +69,7 @@ You are a coding assistant. A user asked: "{user_query}"
 {context_info}
 
 Available tools:
+FILESYSTEM:
 - read_file(filepath="path/to/file")
 - write_file(filepath="path/to/file", content="file content here")
 - search_codebase(search_term="search text", directory=".")
@@ -66,16 +78,22 @@ Available tools:
 - delete_directory(directory_path="path/to/directory")
 - create_directory(directory_path="path/to/directory")
 
+CODE ANALYSIS:
+- validate_syntax(filepath="path/to/file")
+- run_linter(filepath="path/to/file", linter_type="auto|pylint|flake8|eslint")
+- find_references(symbol="function_name", directory=".", file_extensions=[".py", ".js"])
+- analyze_complexity(filepath="path/to/file")
+- code_quality_report(directory=".")
+
 CONTEXT AWARENESS RULES:
 - If user mentions "it", "this", or "the file", refer to recently worked files
-- If user wants to delete a directory, use delete_directory
-- If user wants to delete a file, use delete_file
+- For code analysis requests, use appropriate analysis tools
 - Pay attention to conversation history for context
 
 CRITICAL RULES:
 1. ONLY respond with tool commands: tool_name(param1="value1", param2="value2")
 2. No explanatory text outside tool commands
-3. For directory deletion, use delete_directory not delete_file
+3. Choose the right analysis tool based on user intent
 
 Respond with ONLY tool commands:
 """
