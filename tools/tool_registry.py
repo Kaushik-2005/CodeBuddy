@@ -5,20 +5,22 @@ class ToolRegistry:
     def __init__(self):
         self.tools = {}
     
-    def register(self, name: str, func: Callable):
+    def register(self, name: str, function):
         """Register a tool function"""
-        self.tools[name] = func
+        self.tools[name] = function
     
-    def execute(self, tool_name: str, **kwargs) -> str:
-        """Execute a tool with given parameters"""
-        if tool_name not in self.tools:
-            return f"Tool '{tool_name}' not found"
-        
-        try:
-            return self.tools[tool_name](**kwargs)
-        except Exception as e:
-            return f"Error executing {tool_name}: {e}"
+    def get_tool(self, name: str):
+        """Get a registered tool function"""
+        return self.tools.get(name)
+    
+    def has_tool(self, name: str) -> bool:
+        """Check if a tool is registered"""
+        return name in self.tools
     
     def list_tools(self) -> list:
-        """Get list of available tools"""
+        """List all registered tool names"""
         return list(self.tools.keys())
+    
+    def get_all_tools(self) -> dict:
+        """Get all registered tools"""
+        return self.tools.copy()
