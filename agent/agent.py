@@ -1,6 +1,7 @@
 import re
 from tools.tool_registry import ToolRegistry
-from tools.file_tools import read_file, write_file, search_codebase, get_structure, delete_file, create_directory
+from tools.file_tools import read_file, write_file, search_codebase, get_structure, delete_file, create_directory, delete_directory
+from memory.memory_manager import ConversationMemory
 from cli.interface import show_debug, show_success, show_error, show_info
 
 class Agent:
@@ -8,6 +9,7 @@ class Agent:
         self.llm = llm_provider
         self.tool_registry = ToolRegistry()
         self.debug_mode = False
+        self.memory = ConversationMemory()  # Add memory system
         self._register_tools()
     
     def _register_tools(self):
@@ -18,6 +20,7 @@ class Agent:
         self.tool_registry.register("get_structure", get_structure)
         self.tool_registry.register("delete_file", delete_file)
         self.tool_registry.register("create_directory", create_directory)
+        self.tool_registry.register("delete_directory", delete_directory)  # Add new tool
     
     def toggle_debug(self):
         """Toggle debug mode on/off"""
@@ -25,8 +28,20 @@ class Agent:
         status = "enabled" if self.debug_mode else "disabled"
         show_info(f"Debug mode {status}")
     
+    def clear_memory(self):
+        """Clear conversation memory"""
+        self.memory.clear_memory()
+        show_info("Memory cleared")
+    
+    def show_memory_stats(self):
+        """Show current memory statistics"""
+        stats = self.memory.get_memory_stats()
+        show_info(f"Memory Stats: {stats['total_interactions']} interactions, {stats['total_files']} files")
+        if stats['most_recent_file']:
+            show_info(f"Last file: {stats['most_recent_file']}")
+    
     def is_explanation_request(self, user_query: str) -> bool:
-        """Check if the user is asking for an explanation rather than just file operations"""
+        """Check if the user is asking for an explanation"""
         explanation_keywords = [
             'explain', 'understand', 'what does', 'how does', 'analyze', 
             'breakdown', 'describe', 'walk through', 'summarize', 'overview'
@@ -35,8 +50,12 @@ class Agent:
     
     def select_tools(self, user_query: str) -> str:
         """Use LLM to determine which tools to use"""
+        context_info = self.memory.get_conversation_context()
+        
         prompt = f"""
 You are a coding assistant. A user asked: "{user_query}"
+
+{context_info}
 
 Available tools:
 - read_file(filepath="path/to/file")
@@ -44,15 +63,20 @@ Available tools:
 - search_codebase(search_term="search text", directory=".")
 - get_structure(directory=".")
 - delete_file(filepath="path/to/file")
+- delete_directory(directory_path="path/to/directory")
 - create_directory(directory_path="path/to/directory")
 
-CRITICAL RULES:
-1. ONLY respond with tool commands in the exact format: tool_name(param1="value1", param2="value2")
-2. Do NOT include any explanatory text, comments, or code outside tool commands
-3. When using write_file, put ALL code content in the content parameter with \\n for line breaks
-4. Escape quotes inside content with \\\"
+CONTEXT AWARENESS RULES:
+- If user mentions "it", "this", or "the file", refer to recently worked files
+- If user wants to delete a directory, use delete_directory
+- If user wants to delete a file, use delete_file
+- Pay attention to conversation history for context
 
-If multiple tools are needed, list them on separate lines.
+CRITICAL RULES:
+1. ONLY respond with tool commands: tool_name(param1="value1", param2="value2")
+2. No explanatory text outside tool commands
+3. For directory deletion, use delete_directory not delete_file
+
 Respond with ONLY tool commands:
 """
         
@@ -60,8 +84,12 @@ Respond with ONLY tool commands:
     
     def explain_code(self, file_content: str, filepath: str, user_query: str) -> str:
         """Generate an explanation of the code"""
+        context_info = self.memory.get_conversation_context()
+        
         prompt = f"""
 You are a coding assistant. The user asked: "{user_query}"
+
+{context_info}
 
 Here is the code from {filepath}:
 
@@ -69,14 +97,13 @@ Here is the code from {filepath}:
 {file_content}
 ```
 
-Please provide a clear, helpful explanation of this code. Include:
-1. What the code does (main purpose)
+Please provide a clear explanation of this code including:
+1. Main purpose and functionality
 2. Key components and how they work
-3. Important functions/classes and their roles
-4. Any notable patterns or techniques used
-5. How different parts connect together
+3. Important functions/classes
+4. Notable patterns or techniques
 
-Make your explanation beginner-friendly but thorough.
+Make it beginner-friendly but thorough.
 """
         
         return self.llm.ask(prompt)
@@ -86,6 +113,7 @@ Make your explanation beginner-friendly but thorough.
         try:
             tool_command = tool_command.strip()
             
+            # Handle multi-line content
             if '"""' in tool_command:
                 before_quotes = tool_command.split('"""')[0]
                 content_part = tool_command.split('"""')[1]
@@ -93,6 +121,7 @@ Make your explanation beginner-friendly but thorough.
                 escaped_content = content_part.replace('"', '\\"').replace('\n', '\\n')
                 tool_command = before_quotes + '"' + escaped_content + '"' + after_quotes
             
+            # Extract tool name and parameters
             match = re.match(r'(\w+)\((.*)\)', tool_command)
             if not match:
                 return f"Could not parse tool command: {tool_command}"
@@ -100,6 +129,7 @@ Make your explanation beginner-friendly but thorough.
             tool_name = match.group(1)
             params_str = match.group(2)
             
+            # Parse parameters
             params = {}
             if params_str:
                 if tool_name == "write_file" and 'content=' in params_str:
@@ -111,6 +141,7 @@ Make your explanation beginner-friendly but thorough.
                     if content_match:
                         params['content'] = content_match.group(1)
                 else:
+                    # Regular parameter parsing
                     current_param = ""
                     in_quotes = False
                     quote_char = None
@@ -147,6 +178,7 @@ Make your explanation beginner-friendly but thorough.
                             
                             params[key] = value
             
+            # Execute the tool
             result = self.tool_registry.execute(tool_name, **params)
             return result
             
@@ -154,32 +186,34 @@ Make your explanation beginner-friendly but thorough.
             return f"Error executing tool: {e}"
     
     def execute_command(self, user_query: str) -> str:
-        """Main execution method"""
-        # Check if this is an explanation request
+        """Main execution method with memory integration"""
+        files_involved = []
+        
+        # Handle special commands
+        if user_query.lower() == "clear memory":
+            self.clear_memory()
+            return ""
+        elif user_query.lower() == "memory stats":
+            self.show_memory_stats()
+            return ""
+        
+        # Check for explanation requests
         if self.is_explanation_request(user_query):
-            # Try to extract filename from the query
-            file_patterns = [
-                r'(?:in|of|from)\s+([a-zA-Z0-9_./\\-]+\.(?:py|js|ts|java|cpp|c|md|txt|html|css))',
-                r'([a-zA-Z0-9_./\\-]+\.(?:py|js|ts|java|cpp|c|md|txt|html|css))',
-            ]
-            
-            filepath = None
-            for pattern in file_patterns:
-                match = re.search(pattern, user_query, re.IGNORECASE)
-                if match:
-                    filepath = match.group(1)
-                    break
+            # Try to find file reference
+            filepath = self.memory.find_file_by_reference(user_query)
             
             if filepath:
-                # Read the file and then explain it
+                files_involved.append(filepath)
                 file_content = read_file(filepath)
                 if not file_content.startswith("Error"):
                     explanation = self.explain_code(file_content, filepath, user_query)
+                    self.memory.add_interaction(user_query, explanation, files_involved)
                     return explanation
                 else:
-                    return file_content  # Return the error message
+                    self.memory.add_interaction(user_query, file_content, files_involved)
+                    return file_content
         
-        # Regular tool execution for non-explanation requests
+        # Regular tool execution
         tool_suggestion = self.select_tools(user_query)
         
         if self.debug_mode:
@@ -204,6 +238,12 @@ Make your explanation beginner-friendly but thorough.
             
             result = self.parse_and_execute_tool(tool_line)
             
+            # Track files involved
+            if 'write_file' in tool_line:
+                filepath_match = re.search(r'filepath="([^"]*)"', tool_line)
+                if filepath_match:
+                    files_involved.append(filepath_match.group(1))
+            
             if not any(keyword in result for keyword in ["Successfully", "Error", "Tool", "not found"]):
                 results.append(result)
             else:
@@ -212,4 +252,8 @@ Make your explanation beginner-friendly but thorough.
                 elif "Error" in result or "not found" in result:
                     show_error(result)
         
-        return '\n'.join(results)
+        # Add interaction to memory
+        final_result = '\n'.join(results)
+        self.memory.add_interaction(user_query, final_result, files_involved)
+        
+        return final_result

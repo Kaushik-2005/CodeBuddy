@@ -17,11 +17,12 @@ def main():
         llm = GeminiProvider(api_key=GEMINI_API_KEY, mock_mode=False)
         agent = Agent(llm)
         
-        show_info("CodeBuddy initialized! Available commands:")
+        show_info("CodeBuddy initialized with memory! Available commands:")
         show_output("- Ask about files: 'What's in main.py?'")
         show_output("- Search code: 'Find all TODO comments'") 
         show_output("- View structure: 'Show me the project structure'")
         show_output("- Create files: 'Write a Python class for...'")
+        show_output("- Memory commands: 'clear memory', 'memory stats'")
         show_output("- Type 'debug' to toggle debug mode")
         show_output("- Type 'exit' or 'quit' to stop\n")
         

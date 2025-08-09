@@ -29,11 +29,56 @@ def write_file(filepath: str, content: str) -> str:
     except Exception as e:
         return f"Error writing file: {e}"
 
+def delete_directory(directory_path: str) -> str:
+    """Delete a directory and all its contents (with safety checks)"""
+    try:
+        if not os.path.exists(directory_path):
+            return f"Directory {directory_path} does not exist"
+        
+        if not os.path.isdir(directory_path):
+            return f"{directory_path} is not a directory"
+        
+        # Safety check - don't delete important directories
+        dangerous_dirs = [
+            '.git', '.env', 'node_modules', '__pycache__', 
+            '.', '..', '/', 'C:\\', 'D:\\', 'E:\\',
+            os.path.expanduser('~'), # Home directory
+            os.getcwd()  # Current working directory
+        ]
+        
+        abs_path = os.path.abspath(directory_path)
+        for dangerous in dangerous_dirs:
+            if abs_path == os.path.abspath(dangerous):
+                return f"Cannot delete protected directory: {directory_path}"
+        
+        # Additional safety - don't delete if it contains important files
+        important_files = ['.env', 'main.py', 'requirements.txt', '.gitignore']
+        for root, dirs, files in os.walk(directory_path):
+            for file in files:
+                if file in important_files:
+                    return f"Cannot delete directory containing important file: {file}"
+        
+        # Count items to delete
+        total_items = sum([len(dirs) + len(files) for _, dirs, files in os.walk(directory_path)])
+        
+        # Delete the directory
+        shutil.rmtree(directory_path)
+        
+        return f"✅ Successfully deleted directory '{directory_path}' ({total_items} items removed)"
+        
+    except PermissionError:
+        return f"❌ Permission denied: Cannot delete '{directory_path}'. It may be in use or you may not have sufficient permissions."
+    except Exception as e:
+        return f"❌ Error deleting directory: {e}"
+
 def delete_file(filepath: str) -> str:
     """Delete a file (with safety check)"""
     try:
         if not os.path.exists(filepath):
             return f"File {filepath} does not exist"
+        
+        if os.path.isdir(filepath):
+            return f"❌ '{filepath}' is a directory. Use delete_directory instead."
         
         # Safety check - don't delete important files
         dangerous_files = ['.env', 'requirements.txt', 'main.py']
@@ -41,10 +86,10 @@ def delete_file(filepath: str) -> str:
             return f"Cannot delete important file: {filepath}"
         
         os.remove(filepath)
-        return f"Successfully deleted {filepath}"
+        return f"✅ Successfully deleted file: {filepath}"
         
     except Exception as e:
-        return f"Error deleting file: {e}"
+        return f"❌ Error deleting file: {e}"
 
 def search_codebase(search_term: str, directory: str = ".", file_extensions: list = None) -> str:
     """Search for a term across files in the codebase"""
