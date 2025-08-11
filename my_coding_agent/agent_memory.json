@@ -1,0 +1,101 @@
+{
+  "successful_patterns": [
+    {
+      "input_pattern": "hi",
+      "tool_used": null,
+      "timestamp": "2025-08-11T18:55:31.833077"
+    },
+    {
+      "input_pattern": "create a file text.txt",
+      "tool_used": null,
+      "timestamp": "2025-08-11T18:55:52.779220"
+    },
+    {
+      "input_pattern": "delete the file text.txt",
+      "tool_used": null,
+      "timestamp": "2025-08-11T18:56:03.578321"
+    },
+    {
+      "input_pattern": "create a folder temp",
+      "tool_used": null,
+      "timestamp": "2025-08-11T18:56:11.281447"
+    },
+    {
+      "input_pattern": "delete the folder temp",
+      "tool_used": null,
+      "timestamp": "2025-08-11T18:56:20.779009"
+    },
+    {
+      "input_pattern": "git status",
+      "tool_used": null,
+      "timestamp": "2025-08-11T18:56:27.311215"
+    },
+    {
+      "input_pattern": "git log",
+      "tool_used": null,
+      "timestamp": "2025-08-11T18:56:37.333371"
+    },
+    {
+      "input_pattern": "analyze the syntax of main.py",
+      "tool_used": null,
+      "timestamp": "2025-08-11T18:56:50.856423"
+    },
+    {
+      "input_pattern": "read main.py",
+      "tool_used": "git_operation",
+      "timestamp": "2025-08-11T18:57:00.401440"
+    },
+    {
+      "input_pattern": "create a new python file named calculator.py and write the code for basic calcluator",
+      "tool_used": null,
+      "timestamp": "2025-08-11T18:57:36.193296"
+    },
+    {
+      "input_pattern": "create hello_world.py with a simple hello world program",
+      "tool_used": null,
+      "timestamp": "2025-08-11T19:24:22.793317"
+    },
+    {
+      "input_pattern": "show me hello_world.py",
+      "tool_used": null,
+      "timestamp": "2025-08-11T19:24:45.236437"
+    },
+    {
+      "input_pattern": "run hello_world.py",
+      "tool_used": null,
+      "timestamp": "2025-08-11T19:25:31.039149"
+    },
+    {
+      "input_pattern": "lint hello_world.py",
+      "tool_used": null,
+      "timestamp": "2025-08-11T19:28:21.666755"
+    },
+    {
+      "input_pattern": "git status",
+      "tool_used": "git_operation",
+      "timestamp": "2025-08-11T19:28:47.862721"
+    },
+    {
+      "input_pattern": "code template python_script",
+      "tool_used": null,
+      "timestamp": "2025-08-11T19:29:10.854555"
+    },
+    {
+      "input_pattern": "security scan hello_world.py",
+      "tool_used": null,
+      "timestamp": "2025-08-11T19:29:34.107962"
+    },
+    {
+      "input_pattern": "list files",
+      "tool_used": null,
+      "timestamp": "2025-08-11T19:29:58.201593"
+    },
+    {
+      "input_pattern": "analyze dependencies",
+      "tool_used": null,
+      "timestamp": "2025-08-11T19:32:00.908942"
+    }
+  ],
+  "user_preferences": {},
+  "learned_shortcuts": {}
+}

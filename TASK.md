@@ -350,7 +350,7 @@ $ agent "Deploy this feature to staging environment"
 - Set up a basic project structure and dependencies
 - Implement minimal LLM integration
 - Create simple terminal interface
-- Provde basic agent loop with one tool
+- Provide basic agent loop with one tool
 
 ### Core Development Phase
 - Add file system operations (read, write, search)
@@ -361,7 +361,7 @@ $ agent "Deploy this feature to staging environment"
 ### Polish & Integration Phase
 - Optimize user experience and interface
 - Add advanced tools (testing, linting)
-- Implement learning and adaptaion features
+- Implement learning and adaptation features
 - Create comprehensive test scenarios
 
 ### Final Documentation Phase
